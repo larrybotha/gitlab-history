@@ -1,0 +1,27 @@
+[project]
+name = "mr-history"
+version = "0.1.0"
+description = "Browse your GitLab merge request history with inline diff context"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Larry Botha", email = "larry@hugo.systems" },
+]
+urls.Repository = "https://github.com/larrybotha/mr-history"
+dependencies = [
+    "flask>=3.1.3",
+    "markdown>=3.10.2",
+    "sqlalchemy>=2.0.49",
+]
+
+[project.scripts]
+mr-history-serve = "mr_history.app:main_cli"
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11",
+]

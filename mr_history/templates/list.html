@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}MR History — {{ total }} merge requests{% endblock %}
+
+{% block header_extra %}
+  <div class="header-nav">
+    <span class="header-stat"><strong>{{ state_counts.get('all', 0) }}</strong> total</span>
+    <span class="header-stat" style="color:var(--purple)"><strong>{{ state_counts.get('merged', 0) }}</strong> merged</span>
+    <span class="header-stat" style="color:var(--green)"><strong>{{ state_counts.get('opened', 0) }}</strong> open</span>
+    <span class="header-stat" style="color:var(--red)"><strong>{{ state_counts.get('closed', 0) }}</strong> closed</span>
+    <span style="border-left:1px solid var(--border);height:16px;margin:0 4px"></span>
+    <span class="header-stat" style="color:var(--blue)"><strong>{{ role_counts.get('assignee', 0) }}</strong> assignee</span>
+    <span class="header-stat" style="color:var(--orange)"><strong>{{ role_counts.get('reviewer', 0) }}</strong> reviewer</span>
+  </div>
+{% endblock %}
+
+{% block head %}
+<style>
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .filter-group { display: flex; align-items: center; gap: 4px; }
+  .filter-group label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .search-box { flex: 1; min-width: 200px; }
+  .search-box .input { width: 100%; }
+
+  .state-tabs { display: flex; gap: 2px; }
+  .state-tab {
+    padding: 4px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: none;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .state-tab:hover { background: var(--bg-tertiary); color: var(--text); text-decoration: none; }
+  .state-tab.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+  .state-tab .count { font-size: 11px; margin-left: 4px; opacity: 0.7; }
+
+  .mr-list { list-style: none; }
+  .mr-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.1s;
+    align-items: flex-start;
+  }
+  .mr-item:hover { background: var(--bg-hover); }
+  .mr-item:last-child { border-bottom: none; }
+
+  .mr-icon { flex-shrink: 0; margin-top: 2px; width: 18px; height: 18px; }
+  .mr-icon-merged { color: var(--purple); }
+  .mr-icon-opened { color: var(--green); }
+  .mr-icon-closed { color: var(--red); }
+
+  .mr-body { flex: 1; min-width: 0; }
+  .mr-title-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .mr-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .mr-title:hover { color: var(--link); }
+  .mr-labels { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .mr-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .mr-meta-item { display: flex; align-items: center; gap: 3px; }
+
+  .mr-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .comment-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .comment-count svg { width: 14px; height: 14px; fill: currentColor; }
+  .comment-count.has-human { color: var(--blue); }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .pagination .page-info { font-size: 13px; color: var(--text-secondary); }
+
+  .badge-role-assignee { background: var(--blue-bg); color: var(--blue); }
+  .badge-role-reviewer { background: var(--orange-bg); color: var(--orange); }
+  .badge-role-both { background: var(--green-bg); color: var(--green); }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-secondary);
+  }
+  .empty-state h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+
+  .list-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <form method="get" action="/">
+    <div class="toolbar">
+      <div class="state-tabs">
+        {% for s, label_text in [('all', 'All'), ('merged', 'Merged'), ('opened', 'Open'), ('closed', 'Closed')] %}
+          <a href="?state={{ s }}&role={{ role_filter }}&label={{ label_filter }}&q={{ search }}&sort={{ sort }}"
+             class="state-tab {% if state_filter == s %}active{% endif %}">
+            {{ label_text }}<span class="count">{{ state_counts.get(s, 0) }}</span>
+          </a>
+        {% endfor %}
+      </div>
+
+      <div class="state-tabs">
+        {% for r, role_text in [('all', 'All roles'), ('assignee', 'Assignee'), ('reviewer', 'Reviewer'), ('both', 'Both')] %}
+          <a href="?state={{ state_filter }}&role={{ r }}&label={{ label_filter }}&q={{ search }}&sort={{ sort }}"
+             class="state-tab {% if role_filter == r %}active{% endif %}"
+             style="{% if r == 'assignee' %}--tab-color: var(--blue){% elif r == 'reviewer' %}--tab-color: var(--orange){% elif r == 'both' %}--tab-color: var(--green){% endif %}">
+            {{ role_text }}<span class="count">{{ role_counts.get(r, 0) }}</span>
+          </a>
+        {% endfor %}
+      </div>
+
+      <div class="search-box">
+        <input type="text" name="q" value="{{ search }}" placeholder="Search title, branch, or !number…" class="input">
+        <input type="hidden" name="state" value="{{ state_filter }}">
+        <input type="hidden" name="role" value="{{ role_filter }}">
+        <input type="hidden" name="label" value="{{ label_filter }}">
+        <input type="hidden" name="sort" value="{{ sort }}">
+      </div>
+
+      <div class="filter-group">
+        <label>Label:</label>
+        <select name="label" class="input" onchange="this.form.submit()">
+          <option value="">All labels</option>
+          {% for lbl in all_labels %}
+            <option value="{{ lbl }}" {% if label_filter == lbl %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Sort:</label>
+        <select name="sort" class="input" onchange="this.form.submit()">
+          <option value="created_desc" {% if sort == 'created_desc' %}selected{% endif %}>Newest</option>
+          <option value="created_asc" {% if sort == 'created_asc' %}selected{% endif %}>Oldest</option>
+          <option value="updated_desc" {% if sort == 'updated_desc' %}selected{% endif %}>Recently updated</option>
+          <option value="title_asc" {% if sort == 'title_asc' %}selected{% endif %}>Title A→Z</option>
+          <option value="notes_desc" {% if sort == 'notes_desc' %}selected{% endif %}>Most comments</option>
+        </select>
+      </div>
+    </div>
+  </form>
+
+  {% if mrs %}
+  <div class="list-card">
+    <ul class="mr-list">
+      {% for mr in mrs %}
+      <li class="mr-item">
+        {# Icon #}
+        <div class="mr-icon mr-icon-{{ mr.state }}">
+          {% if mr.state == 'merged' %}
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218ZM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm8-9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4.25 4a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/></svg>
+          {% elif mr.state == 'opened' %}
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z"/></svg>
+          {% else %}
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z"/></svg>
+          {% endif %}
+        </div>
+
+        {# Body #}
+        <div class="mr-body">
+          <div class="mr-title-row">
+            <a href="/mr/{{ mr.iid }}" class="mr-title">{{ mr.title }}</a>
+            {% if mr.labels %}
+              <span class="mr-labels">
+                {% for lbl in mr.labels.split(',') %}
+                  {% if lbl.strip() %}
+                    <a href="/?state={{ state_filter }}&role={{ role_filter }}&label={{ lbl.strip() }}&q={{ search }}&sort={{ sort }}" class="badge badge-label">{{ lbl.strip() }}</a>
+                  {% endif %}
+                {% endfor %}
+              </span>
+            {% endif %}
+          </div>
+          <div class="mr-meta">
+            <span class="mr-meta-item">
+              <strong>!{{ mr.iid }}</strong>
+            </span>
+            <span class="mr-meta-item">
+              {{ mr.created_at | relative_date }}
+            </span>
+            <span class="mr-meta-item">
+              {{ mr.source_branch }}
+            </span>
+            {% if mr.draft %}
+              <span class="badge badge-draft">Draft</span>
+            {% endif %}
+            {% if mr.user_role %}
+              <span class="badge {% if mr.user_role == 'assignee' %}badge-role-assignee{% elif mr.user_role == 'reviewer' %}badge-role-reviewer{% else %}badge-role-both{% endif %}">{{ mr.user_role }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {# Stats #}
+        <div class="mr-stats">
+          <span class="badge badge-{{ mr.state }}">{{ mr.state }}</span>
+          {% set hc = human_comment_counts.get(mr.id, 0) %}
+          {% if mr.user_notes_count > 0 or hc > 0 %}
+          <span class="comment-count {% if hc > 0 %}has-human{% endif %}">
+            <svg viewBox="0 0 16 16"><path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25Zm1.5 0a.25.25 0 0 1 .25-.25h10.5a.25.25 0 0 1 .25.25v7.5a.25.25 0 0 1-.25.25h-4.5a.75.75 0 0 0-.53.22l-2.72 2.72v-2.19a.75.75 0 0 0-.75-.75h-2a.25.25 0 0 1-.25-.25Z"/></svg>
+            {% if hc > 0 %}{{ hc }}{% else %}{{ mr.user_notes_count }}{% endif %}
+          </span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {# Pagination #}
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+      <a href="?state={{ state_filter }}&role={{ role_filter }}&label={{ label_filter }}&q={{ search }}&sort={{ sort }}&page={{ page - 1 }}" class="btn btn-sm">← Prev</a>
+    {% endif %}
+    <span class="page-info">Page {{ page }} of {{ total_pages }} · {{ total }} merge requests</span>
+    {% if page < total_pages %}
+      <a href="?state={{ state_filter }}&role={{ role_filter }}&label={{ label_filter }}&q={{ search }}&sort={{ sort }}&page={{ page + 1 }}" class="btn btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-state">
+    <h3>No merge requests found</h3>
+    <p>Try adjusting your filters or search query.</p>
+    <a href="/" class="btn mt-3">Clear filters</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

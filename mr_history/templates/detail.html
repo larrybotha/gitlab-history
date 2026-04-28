@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+
+{% block title %}!{{ mr.iid }} — {{ mr.title }}{% endblock %}
+
+{% block header_extra %}
+  <div class="header-nav">
+    {% if prev_mr %}
+      <a href="/mr/{{ prev_mr.iid }}" class="btn btn-sm" title="!{{ prev_mr.iid }}">← Prev</a>
+    {% endif %}
+    {% if next_mr %}
+      <a href="/mr/{{ next_mr.iid }}" class="btn btn-sm" title="!{{ next_mr.iid }}">Next →</a>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .back-link:hover { color: var(--link); }
+
+  .mr-header-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .mr-title-main {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .mr-title-main .badge { font-size: 13px; padding: 3px 10px; flex-shrink: 0; }
+
+  .mr-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .mr-info-item label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .mr-info-item .value { font-size: 13px; color: var(--text); word-break: break-all; }
+  .mr-info-item .value a { font-size: 13px; }
+
+  .mr-labels-row { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .description-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title .count {
+    font-size: 12px;
+    background: var(--bg-tertiary);
+    padding: 1px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  /* Files summary */
+  .files-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 24px;
+    margin-bottom: 24px;
+  }
+  .files-list { list-style: none; }
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .file-item:last-child { border-bottom: none; }
+  .file-path {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: var(--blue);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-count {
+    font-size: 11px;
+    background: var(--bg-tertiary);
+    padding: 1px 6px;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  /* Comments */
+  .comments-section { margin-bottom: 24px; }
+  .comments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .comments-controls { display: flex; gap: 8px; }
+  .comments-toggle { display: flex; gap: 2px; }
+
+  /* Discussion thread wrapper */
+  .discussion-thread {
+    margin-bottom: 16px;
+  }
+  .discussion-thread .comment-card {
+    margin-bottom: 0;
+    border-radius: 0;
+  }
+  .discussion-thread .comment-card:first-child {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .discussion-thread .comment-card:last-child {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
+  .discussion-thread .comment-card:only-child {
+    border-radius: var(--radius-lg);
+  }
+  .discussion-thread .comment-card + .comment-card {
+    border-top: none;
+  }
+  .thread-reply {
+    border-left: 3px solid var(--purple);
+  }
+
+  /* Diff position bar */
+  .diff-position {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: rgba(56, 139, 253, 0.08);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .diff-position svg { width: 14px; height: 14px; fill: var(--text-muted); flex-shrink: 0; }
+  .diff-file {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    color: var(--blue);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .diff-line {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  }
+
+  /* Code context block */
+  .code-context {
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .code-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .code-table td { padding: 0; vertical-align: top; }
+  .code-line-num {
+    width: 50px;
+    min-width: 50px;
+    padding: 0 8px 0 16px;
+    text-align: right;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    user-select: none;
+    border-right: 1px solid var(--border);
+  }
+  .code-line-content {
+    padding: 0 12px;
+    background: var(--bg);
+  }
+  .code-line-content pre {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+    color: var(--text);
+  }
+  .code-target .code-line-num {
+    background: rgba(56, 139, 253, 0.15);
+    color: var(--blue);
+  }
+  .code-target .code-line-content {
+    background: rgba(56, 139, 253, 0.06);
+  }
+  .code-target-primary .code-line-num {
+    background: rgba(56, 139, 253, 0.25);
+  }
+  .code-target-primary .code-line-content {
+    background: rgba(56, 139, 253, 0.12);
+  }
+
+  .comment-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .comment-card.system-comment { opacity: 0.6; border-style: dashed; }
+  .comment-card.system-comment:hover { opacity: 1; }
+  .comment-card.diff-comment { border-left: 3px solid var(--blue); }
+
+  .comment-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .comment-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--purple-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--purple);
+    flex-shrink: 0;
+  }
+  .comment-author { font-weight: 600; color: var(--text); }
+  .comment-date { color: var(--text-muted); margin-left: auto; }
+  .comment-badges { display: flex; gap: 4px; }
+
+  .comment-body { padding: 16px; }
+  .comment-body.system-body { padding: 10px 16px; font-size: 13px; color: var(--text-secondary); }
+
+  .no-comments {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .badge-role-assignee { background: var(--blue-bg); color: var(--blue); }
+  .badge-role-reviewer { background: var(--orange-bg); color: var(--orange); }
+  .badge-role-both { background: var(--green-bg); color: var(--green); }
+
+  .branch-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    background: var(--bg-tertiary);
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    color: var(--blue);
+  }
+</style>
+{% endblock %}
+
+{# ===== Macros ===== #}
+
+{% macro render_comment(comment, comment_author, is_reply=false, diff_context=null) %}
+  <div class="comment-card {% if comment.system %}system-comment{% endif %} {% if comment.has_diff_position %}diff-comment{% endif %} {% if is_reply %}thread-reply{% endif %}">
+    {# Diff position bar #}
+    {% if comment.has_diff_position and not is_reply %}
+    <div class="diff-position">
+      <svg viewBox="0 0 16 16"><path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25V2.75C0 1.784.784 1 1.75 1Zm12.5 1.5H1.75a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25ZM8 10a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-3 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+      <span class="diff-file" title="{{ comment.diff_file }}">{{ comment.diff_file }}</span>
+      {% if comment.diff_line_display %}
+        <span class="diff-line">{{ comment.diff_line_display }}</span>
+      {% endif %}
+      {% if comment.diff_position_type == 'file' %}
+        <span class="diff-line">(file-level)</span>
+      {% endif %}
+    </div>
+    {# Code context #}
+    {% if diff_context and diff_context.lines %}
+    <div class="code-context">
+      <table class="code-table">
+        <tbody>
+        {% for line_info in diff_context.lines %}
+          <tr class="{% if line_info.in_range %}code-target{% endif %} {% if line_info.is_target %}code-target-primary{% endif %}">
+            <td class="code-line-num">{{ line_info.line }}</td>
+            <td class="code-line-content"><pre>{{ line_info.content }}</pre></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="comment-header">
+      <div class="comment-avatar">{{ comment_author.name[0] }}</div>
+      <span class="comment-author">{{ comment_author.name }}</span>
+      <span class="text-muted">@{{ comment_author.username }}</span>
+      <div class="comment-badges">
+        {% if comment.system %}
+          <span class="badge" style="background:var(--bg);color:var(--text-muted);font-size:10px;">system</span>
+        {% endif %}
+        {% if comment.resolvable %}
+          {% if comment.resolved %}
+            <span class="badge" style="background:var(--green-bg);color:var(--green);font-size:10px;">✓ resolved</span>
+          {% else %}
+            <span class="badge" style="background:var(--orange-bg);color:var(--orange);font-size:10px;">unresolved</span>
+          {% endif %}
+        {% endif %}
+        {% if comment.type == 'DiffNote' %}
+          <span class="badge" style="background:var(--blue-bg);color:var(--blue);font-size:10px;">diff</span>
+        {% elif comment.type %}
+          <span class="badge badge-label" style="font-size:10px;">{{ comment.type }}</span>
+        {% endif %}
+      </div>
+      <span class="comment-date" title="{{ comment.created_at | format_date }}">{{ comment.created_at | relative_date }}</span>
+    </div>
+    {% if comment.system %}
+      <div class="comment-body system-body">{{ comment.body }}</div>
+    {% else %}
+      <div class="comment-body md-content">{{ comment.body | md | safe }}</div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+
+{% block content %}
+<div class="container">
+
+  <a href="/" class="back-link">← All merge requests</a>
+
+  {# MR Header #}
+  <div class="mr-header-card">
+    <div class="mr-title-main">
+      <span class="badge badge-{{ mr.state }}">{{ mr.state }}</span>
+      <span>{{ mr.title }}</span>
+      {% if mr.draft %}<span class="badge badge-draft">Draft</span>{% endif %}
+      {% if user_role %}
+        <span class="badge {% if user_role == 'assignee' %}badge-role-assignee{% elif user_role == 'reviewer' %}badge-role-reviewer{% else %}badge-role-both{% endif %}">{{ user_role }}</span>
+      {% endif %}
+    </div>
+
+    {% if mr.labels %}
+    <div class="mr-labels-row">
+      {% for lbl in mr.labels.split(',') %}
+        {% if lbl.strip() %}
+          <span class="badge badge-label">{{ lbl.strip() }}</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mr-info-grid">
+      <div class="mr-info-item">
+        <label>Number</label>
+        <div class="value"><strong>!{{ mr.iid }}</strong></div>
+      </div>
+      <div class="mr-info-item">
+        <label>Author</label>
+        <div class="value">{{ author.name }} (@{{ author.username }})</div>
+      </div>
+      <div class="mr-info-item">
+        <label>Created</label>
+        <div class="value">{{ mr.created_at | format_date }} <span class="text-muted">({{ mr.created_at | relative_date }})</span></div>
+      </div>
+      {% if mr.merged_at %}
+      <div class="mr-info-item">
+        <label>Merged</label>
+        <div class="value">
+          {{ mr.merged_at | format_date }}
+          {% if merged_by %}<span class="text-muted">by {{ merged_by.name }}</span>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if mr.closed_at %}
+      <div class="mr-info-item">
+        <label>Closed</label>
+        <div class="value">{{ mr.closed_at | format_date }}</div>
+      </div>
+      {% endif %}
+      <div class="mr-info-item">
+        <label>Source</label>
+        <div class="value"><span class="branch-tag">{{ mr.source_branch }}</span></div>
+      </div>
+      <div class="mr-info-item">
+        <label>Target</label>
+        <div class="value"><span class="branch-tag">{{ mr.target_branch }}</span></div>
+      </div>
+      {% if user_role %}
+      <div class="mr-info-item">
+        <label>Your role</label>
+        <div class="value"><span class="badge {% if user_role == 'assignee' %}badge-role-assignee{% elif user_role == 'reviewer' %}badge-role-reviewer{% else %}badge-role-both{% endif %}">{{ user_role }}</span></div>
+      </div>
+      {% endif %}
+      {% if mr.web_url %}
+      <div class="mr-info-item">
+        <label>GitLab</label>
+        <div class="value"><a href="{{ mr.web_url }}" target="_blank" rel="noopener">Open in GitLab ↗</a></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Description #}
+  {% if mr.description %}
+  <div class="description-section">
+    <div class="section-title">Description</div>
+    <div class="md-content">{{ mr.description | md | safe }}</div>
+  </div>
+  {% endif %}
+
+  {# Commented files summary #}
+  {% if commented_files %}
+  <div class="files-section">
+    <div class="section-title">
+      Files with comments
+      <span class="count">{{ commented_files | length }} file{% if commented_files | length != 1 %}s{% endif %}</span>
+      <span class="count" style="color:var(--blue)">{{ diff_comments }} inline comment{% if diff_comments != 1 %}s{% endif %}</span>
+    </div>
+    <ul class="files-list">
+      {% for path, count in commented_files %}
+      <li class="file-item">
+        <span class="diff-file" title="{{ path }}">{{ path }}</span>
+        <span class="file-count">{{ count }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# Comments #}
+  <div class="comments-section">
+    <div class="comments-header">
+      <div class="section-title" style="margin-bottom:0">
+        Comments
+        <span class="count">{{ human_comments }} discussion{% if human_comments != 1 %}s{% endif %}</span>
+        {% if diff_comments > 0 %}
+          <span class="count" style="color:var(--blue)">{{ diff_comments }} on diff</span>
+        {% endif %}
+        {% if system_comments > 0 %}
+          <span class="count text-muted">{{ system_comments }} system</span>
+        {% endif %}
+      </div>
+      <div class="comments-controls">
+        <div class="comments-toggle">
+          <a href="/mr/{{ mr.iid }}?system=0&view={{ view_mode }}" class="btn btn-sm {% if not show_system %}btn-active{% endif %}">Human only</a>
+          <a href="/mr/{{ mr.iid }}?system=1&view={{ view_mode }}" class="btn btn-sm {% if show_system %}btn-active{% endif %}">All notes</a>
+        </div>
+        <div class="comments-toggle">
+          <a href="/mr/{{ mr.iid }}?system={{ '1' if show_system else '0' }}&view=discussions" class="btn btn-sm {% if view_mode == 'discussions' %}btn-active{% endif %}">Threads</a>
+          <a href="/mr/{{ mr.iid }}?system={{ '1' if show_system else '0' }}&view=flat" class="btn btn-sm {% if view_mode == 'flat' %}btn-active{% endif %}">Flat</a>
+        </div>
+      </div>
+    </div>
+
+    {% if view_mode == 'discussions' %}
+      {# Threaded discussion view #}
+      {% if discussions %}
+        {% for disc in discussions %}
+          {% if disc.notes | length == 1 %}
+            {# Single note — render standalone #}
+            {% set comment, comment_author = disc.notes[0] %}
+            {{ render_comment(comment, comment_author, diff_context=disc.diff_context) }}
+          {% else %}
+            {# Thread — group notes together #}
+            <div class="discussion-thread">
+              {% for comment, comment_author in disc.notes %}
+                {{ render_comment(comment, comment_author, is_reply=not loop.first, diff_context=disc.diff_context if loop.first else null) }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <div class="no-comments">
+          {% if show_system %}
+            No notes on this merge request.
+          {% else %}
+            No discussion comments. <a href="/mr/{{ mr.iid }}?system=1&view=discussions">Show system notes</a>
+          {% endif %}
+        </div>
+      {% endif %}
+
+    {% else %}
+      {# Flat chronological view #}
+      {% if flat_comments %}
+        {% for comment, comment_author in flat_comments %}
+          {{ render_comment(comment, comment_author, diff_context=flat_diff_contexts.get(comment.id)) }}
+        {% endfor %}
+      {% else %}
+        <div class="no-comments">
+          {% if show_system %}
+            No notes on this merge request.
+          {% else %}
+            No discussion comments. <a href="/mr/{{ mr.iid }}?system=1&view=flat">Show system notes</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {# Navigation #}
+  <div style="display:flex;justify-content:space-between;padding-top:16px;border-top:1px solid var(--border);">
+    {% if prev_mr %}
+      <a href="/mr/{{ prev_mr.iid }}" class="btn">← !{{ prev_mr.iid }}: {{ prev_mr.title[:40] }}{% if prev_mr.title|length > 40 %}…{% endif %}</a>
+    {% else %}
+      <span></span>
+    {% endif %}
+    {% if next_mr %}
+      <a href="/mr/{{ next_mr.iid }}" class="btn">!{{ next_mr.iid }}: {{ next_mr.title[:40] }}{% if next_mr.title|length > 40 %}…{% endif %} →</a>
+    {% else %}
+      <span></span>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
