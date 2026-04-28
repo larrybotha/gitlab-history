@@ -15,3 +15,9 @@ wheels/
 
 # Generated
 *.svg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
